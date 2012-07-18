@@ -66,8 +66,12 @@ conf.registerGlobalValue(Twitter, 'access_secret',
         registry.String('', "twitter.com access_secret", private=True))
 conf.registerGlobalValue(Twitter, 'displayReplies',
         registry.Boolean(True, "Automatically display replies?", private=False))
+conf.registerGlobalValue(Twitter, 'displayTweets',
+        registry.Boolean(True, "Automatically display new tweets/retweets?", private=False))
 conf.registerGlobalValue(Twitter, 'replyAnnounceMsg',
         registry.String("Here's what Twitter has to say:", "String to use when announcing replies.", private=False))
+conf.registerGlobalValue(Twitter, 'tweetAnnounceMsg',
+        registry.String("Here's what we tweeted:", "String to use when announcing tweets/retweets.", private=False))
 conf.registerGlobalValue(Twitter, 'postConfirmation',
         registry.String("Posted.", "String to use when confirming a post", private=False))
 conf.registerGlobalValue(Twitter, 'channelList',

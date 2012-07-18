@@ -41,9 +41,12 @@ To Setup:
       !config channel plugins.twitter.enabled True
   If you want replies (mentions):
       !config plugins.twitter.displayReplies True
-      !config plugins.twitter.channelList #yourchannel
+  If you want your own tweets and retweets:
+      !config plugins.twitter.displayTweets True
   If you want topic snarfing:
       !config channel plugins.twitter.tweettopicsnarf True
+  What channels to use for displaying messages
+      !config plugins.twitter.channelList #yourchannel
 
 To use:
   post <msg>
@@ -64,10 +67,18 @@ To use:
   tweets
     Display latest page of tweets.
 
+  mytweets
+    Display own timeline with retweets.
+
 Automatic actions:
     Mentions
     The bot will automatically post mentions the channels in
     channelList. To disable this behaviour, set displayReplies to
+    'False'
+
+    Tweets
+    The bot will automatically post tweets the channels in
+    channelList. To disable this behaviour, set displayTweets to
     'False'
 
     Topic Snarfing

@@ -58,6 +58,28 @@ class snarfDB(plugins.DbiChannelDB):
 
 SNARFDB = plugins.DB('snarf', {'flat': snarfDB})
 
+preferred_encodings = ["UTF-8", "CP1252", "ISO-8859-1"]
+
+def decode_irc(raw, preferred_encs = preferred_encodings):
+    """Heuristic IRC charset decoder"""
+    changed = False
+    for enc in preferred_encs:
+        try:
+            res = raw.decode(enc)
+            changed = True
+            break
+        except:
+            pass
+    if not changed:
+        try:
+            import chardet
+            enc = chardet.detect(raw)['encoding']
+            res = raw.decode(enc)
+        except:
+            res = raw.decode(enc, 'ignore')
+            #enc += "+IGNORE"
+    return res
+
 class Twitter(callbacks.Plugin):
     "Use !post to post messages via the associated twitter account."
     threaded = True
@@ -67,6 +89,7 @@ class Twitter(callbacks.Plugin):
         self.__parent.__init__(irc)
         self.irc = irc
         self.mentionSince = None
+        self.tweetsSince = None
         self.snarfdb = SNARFDB()
         try:
             schedule.removeEvent('Mentions')
@@ -84,15 +107,24 @@ class Twitter(callbacks.Plugin):
             def mentionCaller():
                 self._mention(irc)
             schedule.addPeriodicEvent(mentionCaller, 300, 'Mentions')
+        if self.registryValue('displayTweets'):
+            statuses = self.api.GetUserTimeline(include_rts=True)
+            if len(statuses) > 0:
+                self.tweetsSince = statuses[0].id
+            def tweetsCaller():
+                self._tweets(irc)
+            schedule.addPeriodicEvent(tweetsCaller, 300, 'Tweets')
 
     def _mention(self, irc):
         statuses = self.api.GetMentions(since_id=self.mentionSince)
         if len(statuses) > 0:
             self.mentionSince = statuses[0].id
             for channel in self.registryValue('channelList').split():
-                irc.queueMsg(ircmsgs.privmsg(channel, self.registryValue('replyAnnounceMsg')))
+                comment = self.registryValue('replyAnnounceMsg')
                 for status in statuses:
-                    msg = status.user.screen_name + ' -- ' + status.text
+                    msg = (status.user.screen_name + ' -- ' + status.text).encode("UTF-8")
+                    if comment is not None and len(comment)>0: 
+                        msg = comment + " " + msg
                     irc.queueMsg(ircmsgs.privmsg(channel, msg))
                     irc.noReply()
 
@@ -102,8 +134,36 @@ class Twitter(callbacks.Plugin):
         Displays latest <number> mentions"""
         statuses = self.api.GetMentions()
         for status in statuses[:number]:
-            irc.reply(status.user.screen_name + ' -- ' + status.text)
+            encoded = (status.user.screen_name + ' -- ' + status.text).encode("UTF-8")
+            irc.reply(encoded)
     mentions = wrap(mentions, ['positiveInt'])
+
+    def _tweets(self, irc):
+        statuses = self.api.GetUserTimeline(include_rts=True, since_id=self.tweetsSince)
+        if len(statuses) > 0:
+            self.tweetsSince = statuses[0].id
+            for channel in self.registryValue('channelList').split():
+                comment = self.registryValue('tweetAnnounceMsg')
+                for status in statuses:
+                    msg = (status.user.screen_name + ' -- ' + status.text).encode("UTF-8")
+                    if comment is not None and len(comment)>0: 
+                        msg = comment + " " + msg
+                    irc.queueMsg(ircmsgs.privmsg(channel, msg))
+                    irc.noReply()
+
+    def mytweets(self, irc, msg, args):
+        """takes no arguments
+
+        Echoes own timeline.
+        """
+        statuses = self.api.GetUserTimeline(include_rts=True)
+        status_strs = ['%s (%s)' % (s.text, s.user.screen_name) for s in statuses]
+
+        if(status_strs):
+            irc.reply(" || ".join(status_strs).encode("UTF-8"))
+        else:
+            irc.reply("None")
+    mytweets = wrap(mytweets)
 
     def listfriends(self, irc, msg, args):
         """takes no arguments
@@ -121,7 +181,6 @@ class Twitter(callbacks.Plugin):
         irc.reply( utils.str.format("%L", [u.screen_name for u in users] ) )
     listfollowers = wrap(listfollowers)
 
-
     def post(self, irc, msg, args, text):
         """<text>
 
@@ -131,13 +190,14 @@ class Twitter(callbacks.Plugin):
         if not self.registryValue('enabled', channel):
             return
         try:
-            self.api.PostUpdate( utils.str.format("%s (%s)", text, msg.nick) )
+            encoded = decode_irc(text).encode("UTF-8")
+            self.api.PostUpdate(utils.str.format("%s", encoded))
         except HTTPError:
             irc.reply( "HTTP Error... it may have worked..." )
         except URLError:
             irc.reply( "URL Error... it may have worked..." )
         else:
-            irc.reply( self.registryValue('postConfirmation') )
+            irc.reply( self.registryValue('postConfirmation').encode("UTF-8") )
     post = wrap(post, ['text'])
 
     def tweets(self, irc, msg, args):
@@ -149,7 +209,7 @@ class Twitter(callbacks.Plugin):
         status_strs = ['%s (%s)' % (s.text, s.user.screen_name) for s in statuses]
 
         if(status_strs):
-            irc.reply(" || ".join(status_strs))
+            irc.reply(" || ".join(status_strs).encode("UTF-8"))
         else:
             irc.reply("None")
     tweets = wrap(tweets)
@@ -162,7 +222,7 @@ class Twitter(callbacks.Plugin):
         dms = self.api.GetDirectMessages()
         dm_strs = ['(from @%s) %s' % (m.sender_screen_name, m.text) for m in dms]
         if(dm_strs):
-	    irc.reply(" || ".join(dm_strs))
+	    irc.reply(" || ".join(dm_strs).encode("UTF-8"))
         else:
             irc.reply("No messages");
     messages = wrap(messages)
@@ -182,7 +242,7 @@ class Twitter(callbacks.Plugin):
                 if newSegment not in oldSegments:
                     # Add to db: TODO - trim this if it gets huge!
                     self.snarfdb.add(chan, newSegment)
-                    self.api.PostUpdate( format("%s (%s)", newSegment, msg.nick) )
+                    self.api.PostUpdate( format("%s (%s)", newSegment.encode("UTF-8"), msg.nick) )
 
 Class = Twitter
 # vim:set shiftwidth=4 tabstop=4 expandtab:
