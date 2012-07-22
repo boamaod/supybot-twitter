@@ -95,6 +95,10 @@ class Twitter(callbacks.Plugin):
             schedule.removeEvent('Mentions')
         except KeyError:
             pass
+        try:
+            schedule.removeEvent('Tweets')
+        except KeyError:
+            pass
         t_consumer_key = self.registryValue('consumer_key')
         t_consumer_secret = self.registryValue('consumer_secret')
         t_access_key = self.registryValue('access_key')
@@ -108,7 +112,7 @@ class Twitter(callbacks.Plugin):
                 self._mention(irc)
             schedule.addPeriodicEvent(mentionCaller, 300, 'Mentions')
         if self.registryValue('displayTweets'):
-            statuses = self.api.GetUserTimeline(include_rts=True)
+            statuses = self.api.GetUserTimeline(include_rts=True, count=1)
             if len(statuses) > 0:
                 self.tweetsSince = statuses[0].id
             def tweetsCaller():
@@ -121,21 +125,27 @@ class Twitter(callbacks.Plugin):
             self.mentionSince = statuses[0].id
             for channel in self.registryValue('channelList').split():
                 comment = self.registryValue('replyAnnounceMsg')
+                status_strs = []
                 for status in statuses:
                     msg = (status.user.screen_name + ' -- ' + status.text).encode("UTF-8")
-                    if comment is not None and len(comment)>0: 
-                        msg = comment + " " + msg
-                    irc.queueMsg(ircmsgs.privmsg(channel, msg))
-                    irc.noReply()
+                    self.log.info(msg)
+                    status_strs.append(msg)
+                irc.queueMsg(ircmsgs.privmsg(channel, comment + " " + " || ".join(status_strs)))
+                irc.noReply()
 
     def mentions(self, irc, msg, args, number):
         """<number>
 
         Displays latest <number> mentions"""
         statuses = self.api.GetMentions()
+        status_strs = []
         for status in statuses[:number]:
-            encoded = (status.user.screen_name + ' -- ' + status.text).encode("UTF-8")
-            irc.reply(encoded)
+            msg = (status.user.screen_name + ' -- ' + status.text).encode("UTF-8")
+            status_strs.append(msg)
+        if(len(status_strs) > 0):
+            irc.reply(" || ".join(status_strs))
+        else:
+            irc.reply("None")
     mentions = wrap(mentions, ['positiveInt'])
 
     def _tweets(self, irc):
@@ -144,26 +154,34 @@ class Twitter(callbacks.Plugin):
             self.tweetsSince = statuses[0].id
             for channel in self.registryValue('channelList').split():
                 comment = self.registryValue('tweetAnnounceMsg')
+		status_strs = []
                 for status in statuses:
-                    msg = (status.user.screen_name + ' -- ' + status.text).encode("UTF-8")
-                    if comment is not None and len(comment)>0: 
-                        msg = comment + " " + msg
-                    irc.queueMsg(ircmsgs.privmsg(channel, msg))
-                    irc.noReply()
+                    if status.retweeted_status is not None:
+                      msg = (status.user.screen_name + ' -- RT @' + status.retweeted_status.user.screen_name + " " + status.retweeted_status.text).encode("UTF-8")
+                    else:
+                      msg = (status.user.screen_name + ' -- ' + status.text).encode("UTF-8")
+                    self.log.info(msg)
+                    status_strs.append(msg)
+                irc.queueMsg(ircmsgs.privmsg(channel, comment + " " + " || ".join(status_strs)))
+                irc.noReply()
 
-    def mytweets(self, irc, msg, args):
-        """takes no arguments
+    def mytweets(self, irc, msg, args, number):
+        """<number>
 
-        Echoes own timeline.
-        """
-        statuses = self.api.GetUserTimeline(include_rts=True)
-        status_strs = ['%s (%s)' % (s.text, s.user.screen_name) for s in statuses]
-
-        if(status_strs):
-            irc.reply(" || ".join(status_strs).encode("UTF-8"))
+        Displays latest <number> of tweets on one's own timeline"""
+        statuses = self.api.GetUserTimeline(include_rts=True, count = number)
+        status_strs = []
+        for status in statuses:
+            if status.retweeted_status is not None:
+                msg = (status.user.screen_name + ' -- RT @' + status.retweeted_status.user.screen_name + " " + status.retweeted_status.text).encode("UTF-8")
+            else:
+                msg = (status.user.screen_name + ' -- ' + status.text).encode("UTF-8")
+            status_strs.append(msg)
+        if(len(status_strs) > 0):
+            irc.reply(" || ".join(status_strs))
         else:
             irc.reply("None")
-    mytweets = wrap(mytweets)
+    mytweets = wrap(mytweets, ['positiveInt'])
 
     def listfriends(self, irc, msg, args):
         """takes no arguments
