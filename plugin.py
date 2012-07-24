@@ -104,13 +104,6 @@ class Twitter(callbacks.Plugin):
         t_access_key = self.registryValue('access_key')
         t_access_secret = self.registryValue('access_secret')
         self.api = twitter.Api(consumer_key=t_consumer_key, consumer_secret=t_consumer_secret, access_token_key=t_access_key, access_token_secret=t_access_secret)
-        if self.registryValue('displayReplies'):
-            statuses = self.api.GetMentions()
-            if len(statuses) > 0:
-                self.mentionSince = statuses[0].id
-            def mentionCaller():
-                self._mention(irc)
-            schedule.addPeriodicEvent(mentionCaller, 300, 'Mentions')
         if self.registryValue('displayTweets'):
             statuses = self.api.GetUserTimeline(include_rts=True, count=1)
             if len(statuses) > 0:
@@ -118,6 +111,13 @@ class Twitter(callbacks.Plugin):
             def tweetsCaller():
                 self._tweets(irc)
             schedule.addPeriodicEvent(tweetsCaller, 300, 'Tweets')
+        if self.registryValue('displayReplies'):
+            statuses = self.api.GetMentions()
+            if len(statuses) > 0:
+                self.mentionSince = statuses[0].id
+            def mentionCaller():
+                self._mention(irc)
+            schedule.addPeriodicEvent(mentionCaller, 300, 'Mentions')
 
     def _mention(self, irc):
         statuses = self.api.GetMentions(since_id=self.mentionSince)
@@ -130,9 +130,10 @@ class Twitter(callbacks.Plugin):
                     msg = (status.user.screen_name + ' -- ' + status.text).encode("UTF-8")
                     self.log.info(msg)
                     status_strs.append(msg)
-                irc.queueMsg(ircmsgs.privmsg(channel, comment + " " + " || ".join(status_strs)))
-                irc.noReply()
-
+                status_msgs = comment + " " + " || ".join(status_strs)
+                for msg in ircutils.wrap(status_msgs, 470):
+                    irc.queueMsg(ircmsgs.privmsg(channel, msg))
+    
     def mentions(self, irc, msg, args, number):
         """<number>
 
@@ -154,16 +155,18 @@ class Twitter(callbacks.Plugin):
             self.tweetsSince = statuses[0].id
             for channel in self.registryValue('channelList').split():
                 comment = self.registryValue('tweetAnnounceMsg')
-		status_strs = []
+                status_strs = []
                 for status in statuses:
                     if status.retweeted_status is not None:
-                      msg = (status.user.screen_name + ' -- RT @' + status.retweeted_status.user.screen_name + " " + status.retweeted_status.text).encode("UTF-8")
+                        msg = (status.user.screen_name + ' -- RT @' + status.retweeted_status.user.screen_name + " " + status.retweeted_status.text).encode("UTF-8")
                     else:
-                      msg = (status.user.screen_name + ' -- ' + status.text).encode("UTF-8")
+                        msg = (status.user.screen_name + ' -- ' + status.text).encode("UTF-8")
+                    msg = utils.web.htmlToText(msg)
                     self.log.info(msg)
                     status_strs.append(msg)
-                irc.queueMsg(ircmsgs.privmsg(channel, comment + " " + " || ".join(status_strs)))
-                irc.noReply()
+                status_msgs = comment + " " + " || ".join(status_strs)
+                for msg in ircutils.wrap(status_msgs, 470):
+                    irc.queueMsg(ircmsgs.privmsg(channel, msg))
 
     def mytweets(self, irc, msg, args, number):
         """<number>
