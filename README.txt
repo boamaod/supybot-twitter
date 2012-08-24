@@ -47,6 +47,8 @@ To Setup:
       !config channel plugins.twitter.tweettopicsnarf True
   What channels to use for displaying messages
       !config plugins.twitter.channelList #yourchannel
+  Set the Post format:
+      !config plugins.twitter.postTemplate %(message)s (%(nick)s)
 
 To use:
   post <msg>
