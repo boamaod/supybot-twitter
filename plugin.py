@@ -215,7 +215,7 @@ class Twitter(callbacks.Plugin):
             tweet['message'] = decode_irc(text).encode("UTF-8")
             tweet['nick'] = decode_irc(msg.nick).encode("UTF-8")
 
-            self.api.PostUpdate(utils.str.format(self.registryValue('postTemplate'), tweet))
+            self.api.PostUpdate(self.registryValue('postTemplate') % tweet)
         except HTTPError:
             irc.reply( "HTTP Error... it may have worked..." )
         except URLError:
