@@ -76,5 +76,7 @@ conf.registerGlobalValue(Twitter, 'postConfirmation',
         registry.String("Posted.", "String to use when confirming a post", private=False))
 conf.registerGlobalValue(Twitter, 'channelList',
         registry.String("", "List of channels to broadcast in.", private=False))
+conf.registerGlobalValue(Twitter, 'postTemplate',
+        registry.String("%(message)s (%(nick)s)", "Python String Formatting for posting to twitter.", private=False))
 
 # vim:set shiftwidth=4 tabstop=4 expandtab:

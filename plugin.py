@@ -211,8 +211,11 @@ class Twitter(callbacks.Plugin):
         if not self.registryValue('enabled', channel):
             return
         try:
-            encoded = decode_irc(text).encode("UTF-8")
-            self.api.PostUpdate(utils.str.format("%s", encoded))
+            tweet = {}
+            tweet['message'] = decode_irc(text).encode("UTF-8")
+            tweet['nick'] = decode_irc(msg.nick).encode("UTF-8")
+
+            self.api.PostUpdate(self.registryValue('postTemplate') % tweet)
         except HTTPError:
             irc.reply( "HTTP Error... it may have worked..." )
         except URLError:
